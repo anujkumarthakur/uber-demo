@@ -2,8 +2,6 @@ package models
 
 import (
 	"Uber/config"
-	"database/sql"
-	"fmt"
 	"math"
 	"strconv"
 
@@ -16,23 +14,27 @@ type SearchCab struct {
 }
 
 type CabList struct {
-	DriverId  uuid.UUID
-	Name      string
-	Mobile    string
-	Address   string
-	CarNo     string
-	Latitude  string
-	Longitude string
+	DriverId  uuid.UUID `json:"uuid"`
+	Name      string    `json:"name"`
+	Mobile    string    `json:"mobile"`
+	Address   string    `json:"address"`
+	CarNo     string    `json:"carno"`
+	Latitude  string    `json:"latitude"`
+	Longitude string    `json:"longitude"`
+}
+
+type BookedRide struct {
+	Cab        CabList
+	RiderName  string
+	UserName   string
+	UserMobile string
 }
 
 func SearchCabWithInTwoKM(cab SearchCab) ([]CabList, error) {
 	var NearAllCabList []CabList
 	db := config.GetDB()
-	rows, err := db.Query("SELECT COUNT(*) as count FROM  drivers")
-	fmt.Println("Total count:", checkCount(rows))
-	checkErr(err)
 
-	rows, err = db.Query("SELECT driver_id, name, mobile,address,car_no, c_latitude,c_longitude FROM drivers LIMIT $1", checkCount(rows))
+	rows, err := db.Query("SELECT driver_id, name, mobile,address,car_no, c_latitude,c_longitude FROM drivers order by driver_id desc") //LIMIT $1", checkCount(rows))
 	if err != nil {
 		panic(err)
 	}
@@ -41,16 +43,17 @@ func SearchCabWithInTwoKM(cab SearchCab) ([]CabList, error) {
 		var cablist CabList
 		err = rows.Scan(&cablist.DriverId, &cablist.Name, &cablist.Mobile, &cablist.Address, &cablist.CarNo, &cablist.Latitude, &cablist.Longitude)
 		if err != nil {
-			// handle this error
 			panic(err)
 		}
+		//fmt.Println("*****", cablist.DriverId)
 		res := haversine(cab.latitude, cab.longitude, cablist.Latitude, cablist.Longitude)
-		if res > 20.0 || res < 100 {
+		//fmt.Println("Result ===", res)
+		if res >= 0.0 && res < 4000.9 {
 			NearAllCabList = append(NearAllCabList, cablist)
 		}
 	}
 	checkErr(err)
-
+	//fmt.Println(NearAllCabList)
 	return NearAllCabList, nil
 }
 
@@ -74,24 +77,30 @@ func haversine(lat1 string, lon1 string, lat2 string, lon2 string) float64 {
 	return rad * c
 }
 
-func checkCount(rows *sql.Rows) (count int) {
-	for rows.Next() {
-		err := rows.Scan(&count)
-		checkErr(err)
-	}
-	return count
-}
-
 func checkErr(err error) {
 	if err != nil {
 		panic(err)
 	}
 }
 
-func BookYorRide(cab CabList) (*CabList, error) {
-	return &cab, nil
+func BookYorRide(cab CabList, userId uint64) (BookedRide, error) {
+	db := config.GetDB()
+	sqlStatement := `SELECT name, username, mobile FROM users where user_id=$1`
+	row := db.QueryRow(sqlStatement, userId)
 
-	//your ride car data will be entere in booking history details
+	var user Signup
+	err := row.Scan(&user.Name, &user.Username, &user.Mobile)
+	if err != nil {
+		panic(err)
+	}
+	CabBooked := BookedRide{
+		Cab:        cab,
+		RiderName:  user.Name,
+		UserName:   user.Username,
+		UserMobile: user.Mobile,
+	}
+
+	return CabBooked, nil
 }
 
 //https://www.movable-type.co.uk/scripts/latlong.html

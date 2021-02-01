@@ -59,11 +59,6 @@ func Logout(c *gin.Context) {
 }
 
 func NearMyCab(c *gin.Context) {
-	// var td *Todo
-	// if err := c.ShouldBindJSON(&td); err != nil {
-	// 	c.JSON(http.StatusUnprocessableEntity, "invalid json")
-	// 	return
-	// }
 	var cabsearch models.SearchCab
 	c.BindJSON(&cabsearch)
 	tokenAuth, err := models.ExtractTokenMetadata(c.Request)
@@ -77,15 +72,31 @@ func NearMyCab(c *gin.Context) {
 		return
 	}
 
-	models.SearchCabWithInTwoKM(cabsearch)
-	fmt.Println("&&&&", userId)
+	allcablist, _ := models.SearchCabWithInTwoKM(cabsearch)
+	fmt.Println("User-Id", userId)
 	//td.UserID = userId
 
-	//c.JSON(http.StatusCreated, td)
+	c.JSON(http.StatusOK, allcablist)
 }
 
 func BookRide(c *gin.Context) {
-	fmt.Println("Ride booked")
+
+	var bookride models.CabList
+	c.BindJSON(&bookride)
+	tokenAuth, err := models.ExtractTokenMetadata(c.Request)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userId, err := models.FetchAuth(tokenAuth)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	booked, _ := models.BookYorRide(bookride, userId)
+
+	c.JSON(http.StatusOK, booked)
 }
 
 func Refresh(c *gin.Context) {
